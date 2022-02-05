@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -46,20 +47,28 @@ func GetSession() string {
 }
 
 func main() {
+	buffer := make([]byte, 2048)
 	server := "localhost:2333"
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", server)
+	udpAddr, err := net.ResolveUDPAddr("udp4", server)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
 
-	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	conn, err := net.Dial("udp4", udpAddr.String())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
-
 	fmt.Println("connect success")
-	send(conn)
+	fmt.Fprintf(conn, "Hi UDP Server, How are you doing?")
+	_, err = bufio.NewReader(conn).Read(buffer)
+	if err == nil {
+		fmt.Printf("%s\n", buffer)
+	} else {
+		fmt.Printf("Some error %v\n", err)
+	}
+	conn.Close()
+	// send(conn)
 
 }

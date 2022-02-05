@@ -1,1 +1,2 @@
-host: localhost:2333
+IP: 127.0.0.1
+port: 2333

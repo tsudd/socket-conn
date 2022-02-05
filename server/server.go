@@ -4,16 +4,21 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 
 	"github.com/tsudd/socket-conn/server/utils"
 )
 
 const (
-	defaultConfig = "default_config.yaml"
+	DefaultConfig = "default_config.yaml"
 )
 
+type Config struct {
+	addr net.UDPAddr
+}
+
 func main() {
-	config := defaultConfig
+	config := DefaultConfig
 	if len(os.Args[1:]) > 0 {
 		config = os.Args[1]
 	}
@@ -22,21 +27,39 @@ func main() {
 
 func startServer(config string) {
 	utils.LogMsg(fmt.Sprintf("Starting server using config from %s...", config))
-	configs := utils.GetConfig(config)
-	host := utils.GetElement("host", configs)
-	listen, err := net.Listen("tcp", host)
+	settings, err := handleConfig(config)
+	utils.ChkErr(err)
+	listen, err := net.ListenUDP("udp4", &settings.addr)
 	utils.ChkErr(err)
 	defer listen.Close()
+	buffer := make([]byte, 2048)
 	utils.LogMsg("Waiting for clients")
 
 	for {
-		conn, err := listen.Accept()
+		_, conn, err := listen.ReadFromUDP(buffer)
+		utils.LogMsg(conn.IP.String(), conn.Port, " read message ", string(buffer))
 		if err != nil {
 			continue
 		}
-		utils.LogMsg(conn.RemoteAddr().String(), " tcp connect success")
-		go handleConnection(conn, 5)
+
+		// go handleConnection(conn, 5)
 	}
+}
+
+func handleConfig(path string) (Config, error) {
+	configs := utils.GetConfig(path)
+	port, err := strconv.Atoi(utils.GetElement("port", configs))
+	if err != nil {
+		return Config{}, err
+	}
+	return Config{
+		addr: net.UDPAddr{
+			IP:   net.ParseIP(utils.GetElement("IP", configs)),
+			Port: port,
+			Zone: "",
+		},
+	}, nil
+
 }
 
 func handleConnection(conn net.Conn, timeout int) {
@@ -49,7 +72,7 @@ func handleConnection(conn net.Conn, timeout int) {
 			utils.LogErr(conn.RemoteAddr().String(), " connection error", err)
 			return
 		}
-		tempBuf = append(tempBuf, buffer[:n]...)
+		tempBuf = utils.Depack(append(tempBuf, buffer[:n]...))
 		utils.LogMsg("Received data: ", string(tempBuf))
 
 		//start heartbeating
