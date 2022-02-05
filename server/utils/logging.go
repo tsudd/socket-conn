@@ -27,6 +27,6 @@ func LogMsg(v ...interface{}) {
 
 func ChkErr(err error) {
 	if err != nil {
-		LogErr(os.Stderr, "Fatal error: %s", err.Error())
+		LogErr("Fatal error: ", err.Error())
 	}
 }

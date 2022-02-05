@@ -1,4 +1,4 @@
-module server
+module github.com/tsudd/socket-conn
 
 go 1.17
 
