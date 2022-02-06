@@ -14,6 +14,9 @@ func GetConfig(path string) map[interface{}]interface{} {
 		LogErr(err)
 	}
 	err = yaml.Unmarshal([]byte(data), &m)
+	if err != nil {
+		LogErr(err)
+	}
 	return m
 }
 

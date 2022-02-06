@@ -3,21 +3,39 @@ package utils
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 )
 
 const (
 	MessageLengthNumber = 4
+	TokenField          = "token"
 )
 
-func Enpack(message []byte) []byte {
-	return append(IntToBytes(len(message)), message...)
+type Actions int
+
+const (
+	Con Actions = iota
+	Mes
+	Syn
+	Yes
+	No
+)
+
+type Message struct {
+	Action Actions
+	Params map[string]string
 }
 
-func Depack(buffer []byte) []byte {
+func Enpack(message Message) []byte {
+	ret, _ := json.Marshal(message)
+	return append(IntToBytes(len(ret)), ret...)
+}
+
+func Depack(buffer []byte) Message {
 	length := len(buffer)
 
 	var i int
-	data := make([]byte, 32)
+	data := make([]byte, 1024)
 	for i = 0; i < length; i++ {
 		if length < i+MessageLengthNumber {
 			break
@@ -29,9 +47,14 @@ func Depack(buffer []byte) []byte {
 		data = buffer[i+MessageLengthNumber : i+MessageLengthNumber+messageLen]
 	}
 	if i == length {
-		return make([]byte, 0)
+		return Message{}
 	}
-	return data
+	var res Message
+	err := json.Unmarshal(data, &res)
+	if err != nil {
+		LogErr(err)
+	}
+	return res
 }
 
 func IntToBytes(n int) []byte {

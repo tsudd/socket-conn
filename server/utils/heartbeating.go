@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func HeartBeating(conn net.Conn, readerChannel chan byte, timeout int) {
+func HeartBeating(conn net.UDPConn, readerChannel chan byte, timeout int) {
 	select {
 	case _ = <-readerChannel:
 		LogMsg(conn.RemoteAddr().String(), "get message, keeping heartbeating...")

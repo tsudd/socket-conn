@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -12,32 +10,18 @@ import (
 	"github.com/tsudd/socket-conn/server/utils"
 )
 
-type Msg struct {
-	Meta    map[string]interface{} `json:"meta"`
-	Content interface{}            `json:"content"`
-}
-
 func send(conn net.Conn) {
-	for i := 0; i < 6; i++ {
-		session := GetSession()
-		message := &Msg{
-			Meta: map[string]interface{}{
-				"meta": "test",
-				"ID":   strconv.Itoa(i),
-			},
-			Content: Msg{
-				Meta: map[string]interface{}{
-					"author": "nucky lu",
-				},
-				Content: session,
-			},
-		}
-		result, _ := json.Marshal(message)
-		conn.Write(utils.Enpack(result))
-		time.Sleep(1 * time.Second)
+	message := utils.Message{
+		Action: utils.Mes,
+		Params: map[string]string{
+			"nice":           "test",
+			utils.TokenField: "387e6278d8e06083d813358762e0ac63",
+			"text":           "Hi UDP Server, How are you doing?",
+		},
 	}
+	conn.Write(utils.Enpack(message))
+	time.Sleep(1 * time.Second)
 	fmt.Println("send over")
-	defer conn.Close()
 }
 
 func GetSession() string {
@@ -48,27 +32,27 @@ func GetSession() string {
 
 func main() {
 	buffer := make([]byte, 2048)
-	server := "localhost:2333"
+	server := "127.0.0.1:2333"
 	udpAddr, err := net.ResolveUDPAddr("udp4", server)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
-
-	conn, err := net.Dial("udp4", udpAddr.String())
+	conn, err := net.DialUDP("udp4", nil, udpAddr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %s", err.Error())
 		os.Exit(1)
 	}
+	defer conn.Close()
 	fmt.Println("connect success")
-	fmt.Fprintf(conn, "Hi UDP Server, How are you doing?")
-	_, err = bufio.NewReader(conn).Read(buffer)
+	send(conn)
+	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	_, err = conn.Read(buffer)
 	if err == nil {
 		fmt.Printf("%s\n", buffer)
 	} else {
 		fmt.Printf("Some error %v\n", err)
 	}
-	conn.Close()
 	// send(conn)
 
 }

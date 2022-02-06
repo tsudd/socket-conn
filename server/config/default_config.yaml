@@ -1,2 +1,9 @@
 IP: 127.0.0.1
 port: 2333
+users:
+  - 387e6278d8e06083d813358762e0ac63:
+    name: bob
+  - 9f9d51bc70ef21ca5c14f307980a29d8:
+    name: anime
+  - 0c3ec3e9e0d6caa3ce0e6c670c38a7a0:
+    name: johncena
