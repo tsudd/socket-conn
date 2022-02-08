@@ -4,19 +4,16 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
+	"time"
 
 	"github.com/tsudd/socket-conn/server/utils"
 )
 
 const (
-	DefaultConfig = "default_config.yaml"
+	DefaultConfig              = "default_config.yaml"
+	AlreadyConnectedUserAnswer = "User already connected to the server"
+	ConnectedUsersListAnswer   = "Connected users:\n"
 )
-
-type Config struct {
-	addr  net.UDPAddr
-	users map[string]*utils.User
-}
 
 func main() {
 	config := DefaultConfig
@@ -28,10 +25,10 @@ func main() {
 
 func startServer(config string) {
 	utils.LogMsg(fmt.Sprintf("Starting server using config from %s...", config))
-	settings, err := handleConfig(config)
+	settings, err := utils.HandleConfig(config)
 	utils.ChkErr(err)
 
-	usersWithTokens := settings.users
+	usersWithTokens := settings.Users
 
 	srv := &utils.Server{
 		ConnectedUsers: make(map[*utils.User]net.UDPAddr),
@@ -39,7 +36,9 @@ func startServer(config string) {
 		WhiteList:      usersWithTokens,
 	}
 
-	listenAndHandle(srv, settings.addr)
+	utils.LogMsg("Init of UDP server with ", len(srv.WhiteList), " allowed users")
+
+	listenAndHandle(srv, settings.Addr)
 }
 
 func listenAndHandle(srv *utils.Server, addr net.UDPAddr) error {
@@ -57,11 +56,7 @@ func listenAndHandle(srv *utils.Server, addr net.UDPAddr) error {
 		if err != nil {
 			continue
 		}
-		utils.LogMsg(conn.IP.String(), conn.Port, " read message ", string(buffer))
 		go servConnection(srv, conn, buffer)
-		// go utils.HeartBeating(*listen, messanger, 5)
-		// go utils.GravelChannel(buffer, messanger)
-		// go handleConnection(conn, 5)
 	}
 }
 
@@ -74,12 +69,32 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 		return
 	}
 
-	srv.ConnectedUsers[user] = *con
-	// message = utils.Depack(srv.Listener.ReadFromUDP())
 	switch message.Action {
+	case utils.Ask:
+
+	case utils.Con:
+		if _, ok := srv.ConnectedUsers[user]; ok {
+			utils.LogErr(token, " tries to connect again. aborting him.")
+			go sendMessage(srv, con, buildServerMessage(AlreadyConnectedUserAnswer))
+			return
+		}
+		userResponse := ConnectedUsersListAnswer
+		var i = 1
+		for username, addr := range srv.ConnectedUsers {
+			userResponse += fmt.Sprintf("%d. %s on %s:%d\n", i, username, addr.IP.String(), addr.Port)
+			i++
+		}
+		srv.ConnectedUsers[user] = *con
+		go sendMessage(srv, con, buildServerMessage(userResponse))
 	case utils.Mes:
-		utils.LogMsg(con.IP.String(), con.Port, " read message ", message.Params["text"])
-		go sendMessage(srv, con, message)
+		if chats_with, ok := srv.E2EConnections[user]; ok {
+			for _, chatUser := range chats_with {
+				if conn, ok := srv.ConnectedUsers[chatUser]; ok {
+					utils.LogMsg("User ", token, "sends message to")
+					go sendMessage(srv, &conn, message)
+				}
+			}
+		}
 	default:
 		utils.LogMsg("undefined action from ", con.IP.String(), con.Port)
 	}
@@ -93,49 +108,12 @@ func sendMessage(srv *utils.Server, con *net.UDPAddr, message utils.Message) {
 	}
 }
 
-func handleConfig(path string) (Config, error) {
-	configs := utils.GetConfig(path)
-	port, err := strconv.Atoi(utils.GetElement("port", configs))
-	if err != nil {
-		return Config{}, err
+func buildServerMessage(text string) utils.Message {
+	return utils.Message{
+		Action: utils.Srv,
+		Params: map[string]string{
+			utils.TimestampField: time.Now().String(),
+			"text":               text,
+		},
 	}
-	// users := utils.GetElement("users", configs)
-	// usersWithTokens := make(map[string]*utils.User)
-	// for toke, user := range users {
-
-	// }
-	return Config{
-		addr: net.UDPAddr{
-			IP:   net.ParseIP(utils.GetElement("IP", configs)),
-			Port: port,
-			Zone: "",
-		},
-		users: map[string]*utils.User{
-			"387e6278d8e06083d813358762e0ac63": {
-				Name: "joohncena",
-			},
-		},
-	}, nil
-
 }
-
-// func handleConnection(conn net.Conn, timeout int) {
-// 	tempBuf := make([]byte, 0)
-// 	buffer := make([]byte, 1024)
-// 	messanger := make(chan byte)
-// 	for {
-// 		n, err := conn.Read(buffer)
-// 		if err != nil {
-// 			utils.LogErr(conn.RemoteAddr().String(), " connection error", err)
-// 			return
-// 		}
-// 		tempBuf = utils.Depack(append(tempBuf, buffer[:n]...))
-// 		utils.LogMsg("Received data: ", string(tempBuf))
-
-// 		//start heartbeating
-// 		go utils.HeartBeating(conn, messanger, timeout)
-// 		//check if get message from client
-// 		go utils.GravelChannel(tempBuf, messanger)
-// 	}
-// 	defer conn.Close()
-// }

@@ -9,6 +9,9 @@ import (
 const (
 	MessageLengthNumber = 4
 	TokenField          = "token"
+	SenderField         = "sender"
+	ReceiverField       = "reser"
+	TimestampField      = "time"
 )
 
 type Actions int
@@ -17,8 +20,8 @@ const (
 	Con Actions = iota
 	Mes
 	Syn
-	Yes
-	No
+	Ask
+	Srv
 )
 
 type Message struct {
