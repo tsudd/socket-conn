@@ -30,7 +30,7 @@ func main() {
 
 func startServer(config string) {
 	utils.LogMsg(fmt.Sprintf("Starting server using config from %s...", config))
-	settings, err := utils.HandleConfig(config)
+	settings, err := utils.HandleServerConfig(config)
 	utils.ChkErr(err)
 
 	usersWithTokens := settings.Users
@@ -71,7 +71,7 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 	user, ok := srv.WhiteList[token]
 	if !ok {
 		utils.LogErr("Wrong user with token", token, " from ", con.IP.String(), con.Port)
-		sendMessage(srv, con, buildServerMessage(UnallowedUserAnswer))
+		sendMessage(srv, con, buildServerMessage(UnallowedUserAnswer, utils.Err))
 		return
 	}
 
@@ -80,14 +80,14 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 		// check if user connected
 		if _, ok := srv.ConnectedUsers[user]; !ok {
 			utils.LogErr(token, " tries to exchange messages before connection. aboring him.")
-			sendMessage(srv, con, buildServerMessage(UnconnectedUserAnswer))
+			sendMessage(srv, con, buildServerMessage(UnconnectedUserAnswer, utils.Err))
 			return
 		}
 		//check if other user exists in the system
 		receiver := checkUsername(srv, message.Params[utils.ReceiverField])
 		if receiver == nil {
 			utils.LogErr(token, " tries to exchange messages with unallowed user. aborting him")
-			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer))
+			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer, utils.Err))
 			return
 		}
 		// if other user connected trying to esablish connection
@@ -106,14 +106,15 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 			sendMessage(srv, &addr, message)
 		} else {
 			utils.LogErr(token, " tries to exchange messages with unconnected user. aborting him")
-			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer))
+			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer, utils.Err))
 		}
 	case utils.Con:
 		if _, ok := srv.ConnectedUsers[user]; ok {
 			utils.LogErr(token, " tries to connect again. aborting him.")
-			go sendMessage(srv, con, buildServerMessage(AlreadyConnectedUserAnswer))
+			go sendMessage(srv, con, buildServerMessage(AlreadyConnectedUserAnswer, utils.Err))
 			return
 		}
+		utils.LogMsg("Establishing connection with", user.Name)
 		userResponse := ConnectedUsersListAnswer
 		var i = 1
 		for username, addr := range srv.ConnectedUsers {
@@ -121,7 +122,9 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 			i++
 		}
 		srv.ConnectedUsers[user] = *con
-		go sendMessage(srv, con, buildServerMessage(userResponse))
+		mes := buildServerMessage(userResponse, utils.Con)
+		mes.Params["user"] = user.Name
+		go sendMessage(srv, con, mes)
 	case utils.Mes:
 		if chats_with, ok := srv.E2EConnections[user]; ok {
 			for _, chatUser := range chats_with {
@@ -153,9 +156,9 @@ func sendMessage(srv *utils.Server, con *net.UDPAddr, message utils.Message) {
 	}
 }
 
-func buildServerMessage(text string) utils.Message {
+func buildServerMessage(text string, action utils.Actions) utils.Message {
 	return utils.Message{
-		Action: utils.Srv,
+		Action: action,
 		Params: map[string]string{
 			utils.TimestampField: time.Now().String(),
 			"text":               text,

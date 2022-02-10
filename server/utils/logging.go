@@ -9,7 +9,7 @@ func LogErr(v ...interface{}) {
 
 	logfile := os.Stdout
 	log.Println(v...)
-	logger := log.New(logfile, "\r\n", log.Llongfile|log.Ldate|log.Ltime)
+	logger := log.New(logfile, "\r\n", log.Ldate|log.Ltime)
 	logger.SetPrefix("[Error]")
 	logger.Println(v...)
 	defer logfile.Close()

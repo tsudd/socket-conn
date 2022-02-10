@@ -22,6 +22,7 @@ const (
 	Syn
 	Ask
 	Srv
+	Err
 )
 
 type Message struct {

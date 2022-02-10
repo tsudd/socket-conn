@@ -12,3 +12,12 @@ type Server struct {
 	WhiteList      map[string]*User
 	Listener       *net.UDPConn
 }
+
+type Client struct {
+	User          *User
+	UserToken     string
+	ServerAddr    net.UDPAddr
+	Dial          *net.UDPConn
+	ReceiverToken string
+	ReceverName   string
+}

@@ -9,9 +9,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type Config struct {
+type SConfig struct {
 	Addr  net.UDPAddr
 	Users map[string]*User
+}
+
+type CConfig struct {
+	Addr      net.UDPAddr
+	UserToken string
 }
 
 func GetConfig(path string) map[interface{}]interface{} {
@@ -35,11 +40,11 @@ func GetElement(key string, mapping map[interface{}]interface{}) string {
 	return ""
 }
 
-func HandleConfig(path string) (Config, error) {
+func HandleServerConfig(path string) (SConfig, error) {
 	configs := GetConfig(path)
 	port, err := strconv.Atoi(GetElement("port", configs))
 	if err != nil {
-		return Config{}, err
+		return SConfig{}, err
 	}
 	users := make(map[string]*User)
 	configUsers, ok := configs["users"]
@@ -54,18 +59,29 @@ func HandleConfig(path string) (Config, error) {
 		LogErr("Couldn't parse users", err)
 	}
 
-	return Config{
+	return SConfig{
 		Addr: net.UDPAddr{
 			IP:   net.ParseIP(GetElement("IP", configs)),
 			Port: port,
 			Zone: "",
 		},
-		// Users: map[string]*User{
-		// 	"387e6278d8e06083d813358762e0ac63": {
-		// 		Name: "joohncena",
-		// 	},
-		// },
 		Users: users,
 	}, nil
+}
 
+func HandleClientConfig(path string) (CConfig, error) {
+	configs := GetConfig(path)
+	port, err := strconv.Atoi(GetElement("port", configs))
+	if err != nil {
+		return CConfig{}, err
+	}
+	host := GetElement("host", configs) + ":" + fmt.Sprint(port)
+	udpAddr, err := net.ResolveUDPAddr("udp4", host)
+	if err != nil {
+		return CConfig{}, err
+	}
+	return CConfig{
+		Addr:      *udpAddr,
+		UserToken: GetElement("user", configs),
+	}, nil
 }
