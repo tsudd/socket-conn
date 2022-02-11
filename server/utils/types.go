@@ -6,6 +6,13 @@ type User struct {
 	Name string
 }
 
+type ClientMode int
+
+const (
+	Chat ClientMode = iota
+	Wait
+)
+
 type Server struct {
 	ConnectedUsers map[*User]net.UDPAddr
 	E2EConnections map[*User][]*User
@@ -19,5 +26,6 @@ type Client struct {
 	ServerAddr    net.UDPAddr
 	Dial          *net.UDPConn
 	ReceiverToken string
-	ReceverName   string
+	ReceiverName  string
+	Mode          ClientMode
 }

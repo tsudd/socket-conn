@@ -10,8 +10,9 @@ const (
 	MessageLengthNumber = 4
 	TokenField          = "token"
 	SenderField         = "sender"
-	ReceiverField       = "reser"
+	ReceiverTokenField  = "reser"
 	TimestampField      = "time"
+	SenderNameField     = "myname"
 )
 
 type Actions int

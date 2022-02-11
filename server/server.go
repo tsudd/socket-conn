@@ -18,6 +18,8 @@ const (
 	UnconnectedUserAnswer      = "You should connect before exchanging messages."
 	UnallowedReceiverAnswer    = "This user doesn't exist in the system."
 	UnconnectedRecieverAnswer  = "This user is disconnected. Try again later."
+	ConnectionSuccesAnswer     = "Establishing process was succesful. You can start chatting soon."
+	UserStartingChatAnswer     = "%s is starting chat with you. Say hi."
 )
 
 func main() {
@@ -84,7 +86,7 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 			return
 		}
 		//check if other user exists in the system
-		receiver := checkUsername(srv, message.Params[utils.ReceiverField])
+		receiver, rtoken := checkUsername(srv, message.Params[utils.ReceiverTokenField])
 		if receiver == nil {
 			utils.LogErr(token, " tries to exchange messages with unallowed user. aborting him")
 			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer, utils.Err))
@@ -92,7 +94,6 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 		}
 		// if other user connected trying to esablish connection
 		if addr, ok := srv.ConnectedUsers[receiver]; ok {
-			utils.LogMsg("Establishing connection between users", user.Name, " and ", receiver.Name)
 			err := establishE2EConnection(srv, user, receiver)
 			if err != nil {
 				utils.LogErr("Abort establishing", err.Error())
@@ -103,7 +104,14 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 				utils.LogErr("Abort establishing", err.Error())
 				return
 			}
-			sendMessage(srv, &addr, message)
+			utils.LogMsg("Establishing connection between users", user.Name, " and ", receiver.Name)
+			message.Params["text"] = fmt.Sprintf(UserStartingChatAnswer, user.Name)
+			message.Params[utils.SenderNameField] = user.Name
+			userResponse := buildServerMessage(ConnectionSuccesAnswer, utils.Ask)
+			userResponse.Params[utils.TokenField] = rtoken
+			message.Params[utils.SenderNameField] = receiver.Name
+			go sendMessage(srv, &addr, message)
+			go sendMessage(srv, con, userResponse)
 		} else {
 			utils.LogErr(token, " tries to exchange messages with unconnected user. aborting him")
 			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer, utils.Err))
@@ -126,26 +134,36 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 		mes.Params["user"] = user.Name
 		go sendMessage(srv, con, mes)
 	case utils.Mes:
-		if chats_with, ok := srv.E2EConnections[user]; ok {
-			for _, chatUser := range chats_with {
-				if conn, ok := srv.ConnectedUsers[chatUser]; ok {
-					utils.LogMsg("User ", token, "sends message to")
-					go sendMessage(srv, &conn, message)
+		if chatsWith, ok := srv.E2EConnections[user]; ok {
+			receiver, ok := srv.WhiteList[message.Params[utils.ReceiverTokenField]]
+			if !ok {
+				utils.LogErr("User with ", message.Params[utils.ReceiverTokenField], " token is not allowed for messaging for ", user.Name)
+				sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer, utils.Err))
+				return
+			}
+			for _, chatUser := range chatsWith {
+				addr, ok := srv.ConnectedUsers[receiver]
+				if ok && receiver == chatUser {
+					go sendMessage(srv, &addr, message)
+					return
 				}
 			}
+			utils.LogErr("User with ", message.Params[utils.ReceiverTokenField], " token is disconnected or unestablished for ", user.Name)
+			go sendMessage(srv, con, buildServerMessage(UnconnectedRecieverAnswer, utils.Err))
+			return
 		}
 	default:
 		utils.LogMsg("undefined action from ", con.IP.String(), con.Port)
 	}
 }
 
-func checkUsername(srv *utils.Server, name string) *utils.User {
-	for _, user := range srv.WhiteList {
+func checkUsername(srv *utils.Server, name string) (*utils.User, string) {
+	for t, user := range srv.WhiteList {
 		if user.Name == name {
-			return user
+			return user, t
 		}
 	}
-	return nil
+	return nil, ""
 }
 
 func sendMessage(srv *utils.Server, con *net.UDPAddr, message utils.Message) {
@@ -160,7 +178,7 @@ func buildServerMessage(text string, action utils.Actions) utils.Message {
 	return utils.Message{
 		Action: action,
 		Params: map[string]string{
-			utils.TimestampField: time.Now().String(),
+			utils.TimestampField: time.Now().Format("2006-01-02 3:4:5 pm"),
 			"text":               text,
 		},
 	}
