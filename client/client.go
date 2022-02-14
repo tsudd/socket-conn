@@ -39,7 +39,7 @@ func startClient(path string) {
 	utils.ChkErr(err)
 
 	cln := &utils.Client{
-		UserToken:  settings.UserToken,
+		User:       &utils.User{Name: settings.Username},
 		ServerAddr: settings.Addr,
 		Mode:       utils.Wait,
 	}
@@ -120,13 +120,14 @@ func getConnection(cln *utils.Client) error {
 	}
 	cln.Dial = conn
 	connRequest := buildClientMessage(cln, utils.Con)
+	connRequest.Params[utils.TokenField] = cln.User.Name
 	sendMessage(cln, connRequest)
 	mes, err := receiveMessage(cln, 5)
 	if err != nil {
 		return err
 	}
 	if mes.Action == utils.Con {
-		cln.User = &utils.User{Name: mes.Params["user"]}
+		cln.UserToken = mes.Params[utils.SenderField]
 		fmt.Print(mes.Params["text"])
 		return nil
 	} else {

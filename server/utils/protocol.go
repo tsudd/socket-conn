@@ -2,7 +2,9 @@ package utils
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 )
 
@@ -75,4 +77,9 @@ func BytesToInt(b []byte) int {
 	var x int32
 	binary.Read(bytesBuffer, binary.BigEndian, &x)
 	return int(x)
+}
+
+func GetMD5Hash(text string) string {
+	hash := md5.Sum([]byte(text))
+	return hex.EncodeToString(hash[:])
 }

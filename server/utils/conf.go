@@ -15,8 +15,8 @@ type SConfig struct {
 }
 
 type CConfig struct {
-	Addr      net.UDPAddr
-	UserToken string
+	Addr     net.UDPAddr
+	Username string
 }
 
 func GetConfig(path string) map[interface{}]interface{} {
@@ -46,18 +46,6 @@ func HandleServerConfig(path string) (SConfig, error) {
 	if err != nil {
 		return SConfig{}, err
 	}
-	users := make(map[string]*User)
-	configUsers, ok := configs["users"]
-	if ok {
-		for token, user := range configUsers.(map[interface{}]interface{}) {
-			userFields := user.(map[interface{}]interface{})
-			users[token.(string)] = &User{
-				Name: userFields["name"].(string),
-			}
-		}
-	} else {
-		LogErr("Couldn't parse users", err)
-	}
 
 	return SConfig{
 		Addr: net.UDPAddr{
@@ -65,7 +53,6 @@ func HandleServerConfig(path string) (SConfig, error) {
 			Port: port,
 			Zone: "",
 		},
-		Users: users,
 	}, nil
 }
 
@@ -81,7 +68,7 @@ func HandleClientConfig(path string) (CConfig, error) {
 		return CConfig{}, err
 	}
 	return CConfig{
-		Addr:      *udpAddr,
-		UserToken: GetElement("user", configs),
+		Addr:     *udpAddr,
+		Username: GetElement("user", configs),
 	}, nil
 }

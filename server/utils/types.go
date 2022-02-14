@@ -28,4 +28,5 @@ type Client struct {
 	ReceiverToken string
 	ReceiverName  string
 	Mode          ClientMode
+	History       []string
 }
