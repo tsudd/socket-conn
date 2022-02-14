@@ -15,10 +15,13 @@ import (
 const (
 	StartChatCommand = "chat"
 	HelpCommand      = "help"
+	OnlineCommand    = "online"
 )
 
 const (
-	HelpMessage = "Help: commands:\nchat <username> - start chatting with specific user, user should be connected to the server\nexit - end client programm\nhelp - get help\n"
+	HelpMessage = "Help: commands:\nchat <username> - start chatting with specific user, user should be connected to the server\n" +
+		"online - get a list of connected to the server users\nexit - end client programm\nhelp - get help\n"
+	Heartbeating = 7
 )
 
 func main() {
@@ -44,7 +47,7 @@ func startClient(path string) {
 		Mode:       utils.Wait,
 	}
 
-	fmt.Println("Init of UDP client with ", cln.UserToken, " token for server ", cln.ServerAddr.IP.String(), ":", cln.ServerAddr.Port)
+	fmt.Println("Init of UDP client with ", cln.User.Name, " user for server ", cln.ServerAddr.IP.String(), ":", cln.ServerAddr.Port)
 	fmt.Printf("Starting connection to %s:%d....\n", cln.ServerAddr.IP.String(), cln.ServerAddr.Port)
 	err = getConnection(cln)
 	if err != nil {
@@ -53,6 +56,7 @@ func startClient(path string) {
 	}
 	fmt.Println("Succesfully connected to the server!")
 	go handleReading(cln)
+	go startHeartBeating(cln)
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		input, err := reader.ReadString('\n')
@@ -78,6 +82,9 @@ func startClient(path string) {
 				mes := buildClientMessage(cln, utils.Ask)
 				mes.Params[utils.ReceiverTokenField] = inputs[1]
 				mes.Params[utils.SenderNameField] = cln.User.Name
+				sendMessage(cln, mes)
+			case OnlineCommand:
+				mes := buildClientMessage(cln, utils.Con)
 				sendMessage(cln, mes)
 			case HelpCommand:
 				fmt.Print(HelpMessage)
@@ -181,4 +188,12 @@ func outputMessage(cln *utils.Client, message utils.Message) {
 		out = "Undefined action type...\n"
 	}
 	fmt.Print(out)
+}
+
+func startHeartBeating(cln *utils.Client) {
+	for {
+		heart := buildClientMessage(cln, utils.Hrt)
+		go sendMessage(cln, heart)
+		time.Sleep(time.Duration(Heartbeating) * time.Second)
+	}
 }

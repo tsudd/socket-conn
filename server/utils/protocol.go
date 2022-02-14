@@ -26,6 +26,7 @@ const (
 	Ask
 	Srv
 	Err
+	Hrt
 )
 
 type Message struct {

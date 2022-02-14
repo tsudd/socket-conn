@@ -1,6 +1,9 @@
 package utils
 
-import "net"
+import (
+	"net"
+	"time"
+)
 
 type User struct {
 	Name string
@@ -13,11 +16,17 @@ const (
 	Wait
 )
 
+type Connection struct {
+	Addr  net.UDPAddr
+	Alive time.Time
+}
+
 type Server struct {
-	ConnectedUsers map[*User]net.UDPAddr
+	ConnectedUsers map[*User]*Connection
 	E2EConnections map[*User][]*User
 	WhiteList      map[string]*User
 	Listener       *net.UDPConn
+	Heartbeating   int
 }
 
 type Client struct {

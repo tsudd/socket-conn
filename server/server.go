@@ -38,9 +38,10 @@ func startServer(config string) {
 	// usersWithTokens := settings.Users
 
 	srv := &utils.Server{
-		ConnectedUsers: make(map[*utils.User]net.UDPAddr),
+		ConnectedUsers: make(map[*utils.User]*utils.Connection),
 		E2EConnections: make(map[*utils.User][]*utils.User),
 		WhiteList:      make(map[string]*utils.User),
+		Heartbeating:   15,
 	}
 
 	utils.LogMsg("Init of UDP server with ", len(srv.WhiteList), " allowed users")
@@ -73,23 +74,25 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 	user, ok := srv.WhiteList[tokenName]
 	if !ok && message.Action == utils.Con {
 		userToken := utils.GetMD5Hash(tokenName)
-		_, ok = srv.WhiteList[userToken]
+		user, ok = srv.WhiteList[userToken]
 		if ok {
-			utils.LogErr("User with name", tokenName, " already connected. Aborting ", con.IP.String(), con.Port)
-			go sendMessage(srv, con, buildServerMessage(UnallowedUserAnswer, utils.Err))
-			return
+			connected, ok := srv.ConnectedUsers[user]
+			if ok && -1*int(time.Until(connected.Alive).Seconds()) < srv.Heartbeating {
+				utils.LogErr("User with name", tokenName, " already connected. Aborting ", con.IP.String(), con.Port)
+				go sendMessage(srv, con, buildServerMessage(UnallowedUserAnswer, utils.Err))
+				return
+			}
 		}
 		userResponse := formConnectedUsersList(srv)
 		user = &utils.User{Name: tokenName}
 		srv.WhiteList[userToken] = user
-		srv.ConnectedUsers[user] = *con
+		srv.ConnectedUsers[user] = &utils.Connection{Addr: *con, Alive: time.Now()}
 		mes := buildServerMessage(userResponse, utils.Con)
 		mes.Params[utils.SenderField] = userToken
 		go sendMessage(srv, con, mes)
 		utils.LogMsg("Establishing connection with", user.Name)
 		return
 	}
-
 	switch message.Action {
 	case utils.Ask:
 		// check if user connected
@@ -108,10 +111,6 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 		// if other user connected trying to esablish connection
 		if addr, ok := srv.ConnectedUsers[receiver]; ok {
 			err := establishE2EConnection(srv, user, receiver)
-			if err != nil {
-				utils.LogErr("Abort establishing", err.Error())
-				return
-			}
 			err = establishE2EConnection(srv, receiver, user)
 			if err != nil {
 				utils.LogErr("Abort establishing", err.Error())
@@ -123,20 +122,16 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 			userResponse := buildServerMessage(ConnectionSuccesAnswer, utils.Ask)
 			userResponse.Params[utils.TokenField] = rtoken
 			message.Params[utils.SenderNameField] = receiver.Name
-			go sendMessage(srv, &addr, message)
+			go sendMessage(srv, &addr.Addr, message)
 			go sendMessage(srv, con, userResponse)
 		} else {
 			utils.LogErr(tokenName, " tries to exchange messages with unconnected user. aborting him")
 			sendMessage(srv, con, buildServerMessage(UnallowedReceiverAnswer, utils.Err))
 		}
 	case utils.Con:
-		if _, ok := srv.ConnectedUsers[user]; ok {
-			utils.LogErr(tokenName, " tries to connect again. aborting him.")
-			go sendMessage(srv, con, buildServerMessage(AlreadyConnectedUserAnswer, utils.Err))
-			return
-		}
 		userResponse := formConnectedUsersList(srv)
-		mes := buildServerMessage(userResponse, utils.Con)
+		mes := buildServerMessage(userResponse, utils.Srv)
+		srv.ConnectedUsers[user].Alive = time.Now()
 		go sendMessage(srv, con, mes)
 	case utils.Mes:
 		if chatsWith, ok := srv.E2EConnections[user]; ok {
@@ -149,14 +144,22 @@ func servConnection(srv *utils.Server, con *net.UDPAddr, buffer []byte) {
 			for _, chatUser := range chatsWith {
 				addr, ok := srv.ConnectedUsers[receiver]
 				if ok && receiver == chatUser {
-					go sendMessage(srv, &addr, message)
+					go sendMessage(srv, &addr.Addr, message)
 					return
 				}
 			}
 			utils.LogErr("User with ", message.Params[utils.ReceiverTokenField], " token is disconnected or unestablished for ", user.Name)
+			srv.ConnectedUsers[user].Alive = time.Now()
 			go sendMessage(srv, con, buildServerMessage(UnconnectedRecieverAnswer, utils.Err))
 			return
 		}
+	case utils.Hrt:
+		if _, ok := srv.ConnectedUsers[user]; !ok {
+			utils.LogErr(tokenName, " tries to heartbeating before connection. aborting him.")
+			sendMessage(srv, con, buildServerMessage(UnconnectedUserAnswer, utils.Err))
+			return
+		}
+		srv.ConnectedUsers[user].Alive = time.Now()
 	default:
 		utils.LogMsg("undefined action from ", con.IP.String(), con.Port)
 	}
@@ -211,8 +214,8 @@ func formConnectedUsersList(srv *utils.Server) string {
 	}
 	userResponse := ConnectedUsersListAnswer
 	i := 1
-	for username, addr := range srv.ConnectedUsers {
-		userResponse += fmt.Sprintf("%d. %s on %s:%d\n", i, *username, addr.IP.String(), addr.Port)
+	for username, conn := range srv.ConnectedUsers {
+		userResponse += fmt.Sprintf("%d. %s on %s:%d\n", i, *username, conn.Addr.IP.String(), conn.Addr.Port)
 		i++
 	}
 	return userResponse
