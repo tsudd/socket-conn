@@ -94,7 +94,8 @@ func startClient(path string) {
 		} else {
 			mes := buildClientMessage(cln, utils.Mes)
 			mes.Params[utils.ReceiverTokenField] = cln.ReceiverToken
-			mes.Params["text"] = input
+			mes.Params[utils.TextField] = input
+			cln.History = append(cln.History, fmt.Sprintf("[%s] %s: %s", mes.Params[utils.TimestampField], mes.Params[cln.User.Name], input))
 			go sendMessage(cln, mes)
 		}
 	}
@@ -113,6 +114,15 @@ func handleReading(cln *utils.Client) {
 			cln.Mode = utils.Chat
 			cln.ReceiverToken = mes.Params[utils.TokenField]
 			cln.ReceiverName = mes.Params[utils.SenderNameField]
+		case utils.Syn:
+			answer := buildClientMessage(cln, utils.Syn)
+			answer.Params[utils.TextField] = strings.Join(cln.History, "")
+			answer.Params[utils.SenderNameField] = cln.User.Name
+			answer.Params[utils.ReceiverTokenField] = mes.Params[utils.TokenField]
+			cln.ReceiverName = mes.Params[utils.SenderNameField]
+			cln.Mode = utils.Chat
+			cln.ReceiverToken = mes.Params[utils.TokenField]
+			go sendMessage(cln, answer)
 		default:
 
 		}
@@ -135,10 +145,10 @@ func getConnection(cln *utils.Client) error {
 	}
 	if mes.Action == utils.Con {
 		cln.UserToken = mes.Params[utils.SenderField]
-		fmt.Print(mes.Params["text"])
+		fmt.Print(mes.Params[utils.TextField])
 		return nil
 	} else {
-		return errors.New(mes.Params["text"])
+		return errors.New(mes.Params[utils.TextField])
 	}
 }
 
@@ -171,19 +181,22 @@ func outputMessage(cln *utils.Client, message utils.Message) {
 	var out string
 	switch message.Action {
 	case utils.Srv:
-		out = fmt.Sprintf("[%s] Server: %s\n", message.Params[utils.TimestampField], message.Params["text"])
+		out = fmt.Sprintf("[%s] Server: %s\n", message.Params[utils.TimestampField], message.Params[utils.TextField])
+	case utils.Syn:
+		out = fmt.Sprintf(message.Params[utils.TextField])
 	case utils.Mes:
 		var author string
-		if message.Params[utils.ReceiverTokenField] == cln.ReceiverToken {
+		if message.Params[utils.TokenField] == cln.UserToken {
 			author = cln.ReceiverName
 		} else {
 			author = cln.User.Name
 		}
-		out = fmt.Sprintf("[%s] %s: %s", message.Params[utils.TimestampField], author, message.Params["text"])
+		out = fmt.Sprintf("[%s] %s: %s", message.Params[utils.TimestampField], author, message.Params[utils.TextField])
+		cln.History = append(cln.History, out)
 	case utils.Err:
-		out = fmt.Sprintf("[%s] Server (ERROR): %s\n", message.Params[utils.TimestampField], message.Params["text"])
+		out = fmt.Sprintf("[%s] Server (ERROR): %s\n", message.Params[utils.TimestampField], message.Params[utils.TextField])
 	case utils.Ask:
-		out = fmt.Sprintf("[%s] Server: %s\n", message.Params[utils.TimestampField], message.Params["text"])
+		out = fmt.Sprintf("[%s] Server: %s\n", message.Params[utils.TimestampField], message.Params[utils.TextField])
 	default:
 		out = "Undefined action type...\n"
 	}

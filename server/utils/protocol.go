@@ -15,6 +15,7 @@ const (
 	ReceiverTokenField  = "reser"
 	TimestampField      = "time"
 	SenderNameField     = "myname"
+	TextField           = "text"
 )
 
 type Actions int

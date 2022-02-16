@@ -23,7 +23,7 @@ type Connection struct {
 
 type Server struct {
 	ConnectedUsers map[*User]*Connection
-	E2EConnections map[*User][]*User
+	E2EConnections map[User][]*User
 	WhiteList      map[string]*User
 	Listener       *net.UDPConn
 	Heartbeating   int
